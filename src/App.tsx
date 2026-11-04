@@ -20,6 +20,8 @@ import { NoticePreviewModal } from './components/NoticePreviewModal';
 import { TemplateEditorModal } from './components/TemplateEditorModal';
 import { LetterheadUploaderModal } from './components/LetterheadUploaderModal';
 import { BatchProgressModal } from './components/BatchProgressModal';
+import { LoginScreen } from './components/LoginScreen';
+import { ChangePasswordModal } from './components/ChangePasswordModal';
 import { generateBatchZip, downloadSinglePdf } from './utils/pdfGenerator';
 import { resolvePdfFilename } from './utils/fileNaming';
 import {
@@ -30,9 +32,35 @@ import {
   FileText,
   Calendar,
   Image as ImageIcon,
+  KeyRound,
+  LogOut,
 } from 'lucide-react';
 
+const AUTH_USERNAME = 'ratnaafin';
+const DEFAULT_AUTH_PASSWORD = 'Ratnaafin@2027';
+const PASSWORD_STORAGE_KEY = 'ratnaafin_portal_password_v1';
+const SESSION_AUTH_KEY = 'ratnaafin_portal_authenticated_v1';
+
 export default function App() {
+  // Authentication & Password State
+  const [storedPassword, setStoredPassword] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem(PASSWORD_STORAGE_KEY);
+      if (saved) return saved;
+    } catch (_) {}
+    return DEFAULT_AUTH_PASSWORD;
+  });
+
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem(SESSION_AUTH_KEY) === 'true';
+    } catch (_) {
+      return false;
+    }
+  });
+
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+
   // Application State - starts empty with no customer data loaded by default
   const [records, setRecords] = useState<BorrowerRecord[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<string>('September');
@@ -260,6 +288,45 @@ export default function App() {
     }
   };
 
+  // Authentication Handlers
+  const handleLoginSuccess = () => {
+    setIsAuthenticated(true);
+    try {
+      sessionStorage.setItem(SESSION_AUTH_KEY, 'true');
+    } catch {
+      // Ignore storage error
+    }
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    try {
+      sessionStorage.removeItem(SESSION_AUTH_KEY);
+    } catch {
+      // Ignore storage error
+    }
+  };
+
+  const handleUpdatePassword = (newPassword: string) => {
+    setStoredPassword(newPassword);
+    try {
+      localStorage.setItem(PASSWORD_STORAGE_KEY, newPassword);
+    } catch {
+      // Ignore storage error
+    }
+    showToast('Password updated successfully!', 'success');
+  };
+
+  if (!isAuthenticated) {
+    return (
+      <LoginScreen
+        expectedUsername={AUTH_USERNAME}
+        expectedPassword={storedPassword}
+        onLoginSuccess={handleLoginSuccess}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col">
       {/* 1. TOP BAR CONTRACT: Brand | Nav Links | Primary Action */}
@@ -312,7 +379,16 @@ export default function App() {
         </nav>
 
         {/* Primary Action Zone */}
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-2.5 shrink-0">
+          <button
+            onClick={() => setIsChangePasswordOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors whitespace-nowrap"
+            title="Change Portal Password"
+          >
+            <KeyRound className="w-3.5 h-3.5 text-[#046eb6]" />
+            <span className="hidden sm:inline">Change Password</span>
+          </button>
+
           <button
             onClick={handleStartBatchZip}
             disabled={batchProgress.isGenerating || records.length === 0}
@@ -320,6 +396,15 @@ export default function App() {
           >
             <Download className="w-4 h-4" />
             Generate All & Download ZIP ({records.length})
+          </button>
+
+          <button
+            onClick={handleLogout}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-600 hover:text-rose-600 bg-slate-100 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 rounded-lg transition-colors whitespace-nowrap"
+            title="Sign Out"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Logout</span>
           </button>
         </div>
       </header>
@@ -524,6 +609,14 @@ export default function App() {
       </main>
 
       {/* 3. MODALS & PREVIEW ENGINES */}
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        isOpen={isChangePasswordOpen}
+        onClose={() => setIsChangePasswordOpen(false)}
+        currentPassword={storedPassword}
+        onUpdatePassword={handleUpdatePassword}
+      />
 
       {/* Single Notice Preview Modal */}
       {previewBorrowerIndex !== null && records[previewBorrowerIndex] && (
